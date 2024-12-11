@@ -1,61 +1,84 @@
 package com.vdcodeassociate.webrtccallingapplication.firebaseClient
 
-import android.util.Log
-import com.example.webrtccallingapplication.utils.Constants
+import com.vdcodeassociate.webrtccallingapplication.utils.Constants.FIREBASE_LATEST_EVENT
+import com.vdcodeassociate.webrtccallingapplication.utils.Constants.FIREBASE_PASSWORD
+import com.vdcodeassociate.webrtccallingapplication.utils.Constants.FIREBASE_STATUS
+import com.vdcodeassociate.webrtccallingapplication.utils.Constants.FIREBASE_TYPE
+import com.vdcodeassociate.webrtccallingapplication.utils.Constants.FIREBASE_USERNAME
+import com.vdcodeassociate.webrtccallingapplication.utils.Constants.USERS_FIREBASE
 import com.example.webrtccallingapplication.utils.UserStatus
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
-import com.google.firebase.database.GenericTypeIndicator
 import com.google.firebase.database.ValueEventListener
 import com.google.gson.Gson
 import com.vdcodeassociate.webrtccallingapplication.model.User
+import com.vdcodeassociate.webrtccallingapplication.model.LatestEvent
+import com.vdcodeassociate.webrtccallingapplication.prefdata.PreferenceImpl
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class FirebaseClient @Inject constructor(
-    private val dbRef : DatabaseReference,
-    private val gson : Gson
+    private val dbRef: DatabaseReference,
+    private val preferenceImpl: PreferenceImpl,
+    private val gson: Gson
 ) {
 
-    private var currentUserName : String? = null
+    private val TAG = "FirebaseClient"
+
+    private var currentUserName: String? = null
     private fun setUserName(username: String) {
         this.currentUserName = username
+        preferenceImpl.saveUserLogin(username)
     }
 
+    // user login & signup
     fun login(username: String, password: String, done: (Boolean, String?) -> Unit) {
         dbRef.addListenerForSingleValueEvent(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                if (snapshot.hasChild(username)) {
-                    // user exists
-                    val dbPassword = snapshot.child(username).child(Constants.PASSWORD).value
-                    if (password == dbPassword) {
-                        dbRef.child(username).child(Constants.STATUS).setValue(UserStatus.ONLINE)
-                            .addOnCompleteListener {
-                                done(true, null)
-                                setUserName(username)
-                            }.addOnFailureListener {
-                                Log.d("FB_TAG", "Exception : ${it.message}")
-                                done(false, it.message.toString())
-                            }
+
+                // user data path
+                val userDataPath = "$USERS_FIREBASE/$username"
+
+                // check for user existence
+                if (snapshot.child(USERS_FIREBASE).hasChild(username)) {
+                    // user exists, will update status
+                    val dbPassword = snapshot.child(userDataPath).child(FIREBASE_PASSWORD).value
+                    if (dbPassword == password) {
+
+                        // prepare child data
+                        val childData = mapOf(
+                            FIREBASE_STATUS to UserStatus.ONLINE
+                        )
+
+                        // update status
+                        dbRef.child(userDataPath).updateChildren(childData).addOnSuccessListener {
+                            done(true, null)
+                            setUserName(username)
+                        }.addOnFailureListener {
+                            done(false, it.message)
+                        }
                     } else {
                         done(false, "Wrong Password!")
                     }
                 } else {
-                    // user doesn't exists
-                    dbRef.child(username).child(Constants.PASSWORD).setValue(password)
-                        .addOnCompleteListener {
-                            dbRef.child(username).child(Constants.STATUS)
-                                .setValue(UserStatus.ONLINE).addOnCompleteListener {
-                                    done(true, null)
-                                    setUserName(username)
-                                }.addOnFailureListener {
-                                    done(false, it.message)
-                                }
-                        }.addOnFailureListener {
-                            done(false, it.message)
-                        }
+                    // user doesn't exists, will create new user
+                    // prepare data
+                    val childData = mapOf(
+                        FIREBASE_USERNAME to username,
+                        FIREBASE_PASSWORD to password,
+                        FIREBASE_STATUS to UserStatus.ONLINE,
+                        "$FIREBASE_LATEST_EVENT/$FIREBASE_TYPE" to ""
+                    )
+
+                    // add data
+                    dbRef.child(userDataPath).updateChildren(childData).addOnSuccessListener {
+                        done(true, null)
+                        setUserName(username)
+                    }.addOnFailureListener {
+                        done(false, it.message)
+                    }
                 }
             }
 
@@ -65,25 +88,57 @@ class FirebaseClient @Inject constructor(
         })
     }
 
-    fun observeUserStates(status : (List<User>) -> Unit) {
-        dbRef.addListenerForSingleValueEvent(object : ValueEventListener{
+    // logout user
+    fun logout(username: String, done: (Boolean, String?) -> Unit) {
+
+        // user data path
+        val userDataPath = "$USERS_FIREBASE/$username"
+        val childData = mapOf(
+            FIREBASE_STATUS to UserStatus.OFFLINE,
+        )
+
+        // update data
+        dbRef.child(userDataPath).updateChildren(childData).addOnSuccessListener {
+            done(true, null)
+            setUserName(username)
+            preferenceImpl.saveUserLogin("")
+        }.addOnFailureListener {
+            done(false, it.message)
+        }
+    }
+
+    // observer user states when any changes is done
+    fun observeUserStates(status: (List<User>) -> Unit) {
+        dbRef.addListenerForSingleValueEvent(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
 
-                val usersMapType = object : GenericTypeIndicator<Map<String, Map<String, String>>>() {}
-                val usersMap = snapshot.getValue(usersMapType)
+                val usersList = mutableListOf<User>()
 
-                if (usersMap != null) {
-                    // Convert the map of users to a list of User objects
-                    val userList = usersMap.map { entry ->
-                        val username = entry.key
-                        val userData = entry.value
-                        User(
-                            name = username ?: "",
-                            status = userData["status"] ?: ""
+                // Get the "firebase_users" node
+                val firebaseUsersSnapshot = snapshot.child("firebase_users")
+
+                // Iterate through the users in the "firebase_users" node
+                for (userSnapshot in firebaseUsersSnapshot.children) {
+                    val name = userSnapshot.key
+
+                    // If name is not null, proceed with parsing the user's data
+                    if (name != null) {
+                        val userMap = userSnapshot.value as? Map<*, *>
+                        val latestEventMap = userMap?.get("latest_event") as? Map<*, *>
+                        val latestEvent = LatestEvent(
+                            type = latestEventMap?.get("type") as? String ?: ""
                         )
-                    }
+                        val userStatus = userMap?.get("status") as? String ?: "OFFLINE"
 
-                    status(userList)
+                        // Create the user object and add it to the list
+                        val user = User(name, latestEvent, userStatus)
+                        usersList.add(user)
+                    }
+                }
+
+                // adding users in list
+                if (usersList.size > 0) {
+                    status(usersList)
                 }
             }
 

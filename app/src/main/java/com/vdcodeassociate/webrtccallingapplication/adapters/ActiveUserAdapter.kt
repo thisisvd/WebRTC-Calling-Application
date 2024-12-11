@@ -48,9 +48,7 @@ class ActiveUserAdapter() : RecyclerView.Adapter<ActiveUserAdapter.MainRecyclerV
         private val context = binding.root.context
 
         fun bind(
-            user: User,
-            videoCallClicked: (String) -> Unit,
-            audioCallClicked: (String) -> Unit
+            user: User, videoCallClicked: (String) -> Unit, audioCallClicked: (String) -> Unit
         ) {
             binding.apply {
                 when (user.status) {

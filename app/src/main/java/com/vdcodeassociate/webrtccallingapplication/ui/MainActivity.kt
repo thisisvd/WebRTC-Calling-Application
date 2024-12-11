@@ -11,10 +11,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.example.webrtccallingapplication.repository.MainRepository
+import com.vdcodeassociate.webrtccallingapplication.R
+import com.vdcodeassociate.webrtccallingapplication.repository.MainRepository
 import com.vdcodeassociate.webrtccallingapplication.adapters.ActiveUserAdapter
 import com.vdcodeassociate.webrtccallingapplication.databinding.ActivityMainBinding
-import com.vdcodeassociate.webrtccallingapplication.service.MainService
 import com.vdcodeassociate.webrtccallingapplication.service.MainServiceRepository
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -24,10 +24,11 @@ class MainActivity : AppCompatActivity() {
 
     // view binding
     private lateinit var binding: ActivityMainBinding
-    private var  username : String? = null
+    private var username: String? = null
 
     @Inject
     lateinit var mainRepository: MainRepository
+
     @Inject
     lateinit var mainServiceRepository: MainServiceRepository
 
@@ -45,8 +46,26 @@ class MainActivity : AppCompatActivity() {
             // recycler view setup
             setupRecyclerView()
 
-            username = intent.getStringExtra("username")
-            if (username == null) finish()
+            // logout click listener
+            logoutImg.setOnClickListener {
+                mainRepository.logout(
+                    mainRepository.getLoggedUsername()
+                ) { isDone, _ ->
+                    if (!isDone) {
+                        Toast.makeText(this@MainActivity, "Error in logout", Toast.LENGTH_SHORT).show()
+                    } else {
+                        this@MainActivity.finish()
+                    }
+                }
+            }
+
+            username = mainRepository.getLoggedUsername()
+            if (username.isNullOrEmpty()) {
+                finish()
+            } else {
+                userNameTv.text = getString(R.string.logout_description_value, username)
+            }
+
             // observe other user states
             subscribeObservers()
             // start foreground service to listen negotiations and calls
@@ -78,22 +97,27 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun checkPermission() : Boolean {
-        return if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-            != PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this,
-                arrayOf(
-                    Manifest.permission.RECORD_AUDIO,
-                    Manifest.permission.CAMERA
-                ), 1122)
+    private fun checkPermission(): Boolean {
+        return if (ContextCompat.checkSelfPermission(
+                this, Manifest.permission.RECORD_AUDIO
+            ) != PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(
+                this, Manifest.permission.CAMERA
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this, arrayOf(
+                    Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA
+                ), 1122
+            )
             false
         } else {
             true
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+    ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 1122) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
@@ -102,11 +126,11 @@ class MainActivity : AppCompatActivity() {
                 AlertDialog.Builder(this)
                     .setMessage("We need the camera permission to take photos.")
                     .setPositiveButton("OK") { _, _ ->
-                        ActivityCompat.requestPermissions(this,
-                            arrayOf(
-                                Manifest.permission.RECORD_AUDIO,
-                                Manifest.permission.CAMERA
-                            ), 1122)
+                        ActivityCompat.requestPermissions(
+                            this, arrayOf(
+                                Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA
+                            ), 1122
+                        )
                     }.show()
             }
         }
