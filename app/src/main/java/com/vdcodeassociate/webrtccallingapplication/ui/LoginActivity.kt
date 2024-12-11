@@ -1,17 +1,11 @@
 package com.vdcodeassociate.webrtccallingapplication.ui
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import com.example.webrtccallingapplication.repository.MainRepository
+import com.vdcodeassociate.webrtccallingapplication.repository.MainRepository
 import com.vdcodeassociate.webrtccallingapplication.databinding.ActivityLoginBinding
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -33,10 +27,16 @@ class LoginActivity : AppCompatActivity() {
         setContentView(view)
         binding.apply {
 
+            val loggedUserName = mainRepository.getLoggedUsername()
+            if (loggedUserName.isNotEmpty()) {
+                goToMainActivity()
+            }
+
             onClickListeners()
         }
     }
 
+    // on click listeners
     private fun onClickListeners() {
         binding.apply {
 
@@ -48,12 +48,15 @@ class LoginActivity : AppCompatActivity() {
                     if (!isDone) {
                         Toast.makeText(this@LoginActivity, message, Toast.LENGTH_SHORT).show()
                     } else {
-                        startActivity(Intent(this@LoginActivity, MainActivity::class.java).apply {
-                            putExtra("username", usernameEt.text.toString())
-                        })
+                        goToMainActivity()
                     }
                 }
             }
         }
+    }
+
+    // navigate to main activity
+    private fun goToMainActivity() {
+        startActivity(Intent(this@LoginActivity, MainActivity::class.java))
     }
 }

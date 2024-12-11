@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">WebRTC Calling Application</string>
+    <string name="logout_description">logout_description</string>
+    <string name="logout_description_value">Logout %1$s!</string>
+    <string name="some_one_is_calling_you">Some one is calling you</string>
+    <string name="accept">Accept</string>
+    <string name="decline">Decline</string>
 </resources>

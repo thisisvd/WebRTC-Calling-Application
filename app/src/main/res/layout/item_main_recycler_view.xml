@@ -40,7 +40,6 @@
             app:layout_constraintTop_toTopOf="parent" />
 
 
-
         <ImageView
             android:id="@+id/videoCallBtn"
             android:layout_width="40dp"
@@ -61,8 +60,8 @@
             android:padding="8dp"
             android:src="@drawable/ic_call"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toEndOf="@id/usernameTv"
             app:layout_constraintEnd_toStartOf="@id/videoCallBtn"
+            app:layout_constraintStart_toEndOf="@id/usernameTv"
             app:layout_constraintTop_toTopOf="parent" />
 
         <TextView
